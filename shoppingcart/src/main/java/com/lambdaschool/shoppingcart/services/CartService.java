@@ -62,4 +62,5 @@ public interface CartService
      */
     void delete(Cart cart,
                 Product product);
+    List<Cart> findAllByAuth();
 }

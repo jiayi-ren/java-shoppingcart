@@ -40,4 +40,23 @@ public interface UserService
      * @return the saved user object including any automatically generated fields
      */
     User save(User user);
+    void deleteUserRole(
+            long userid,
+            long roleid);
+
+    /**
+     * Adds a given user role combination
+     *
+     * @param userid The user id of the user part of this user role combination
+     * @param roleid The role id of the role part of this user role combination
+     */
+    void addUserRole(
+            long userid,
+            long roleid);
+
+    /**
+     * List containing usernames and the number of emails they have - not counting the primary email
+     *
+     * @return List (element type is the interface UserNameCountEmails) containing usernames and the number of emails they have - not counting the primary email
+     */
 }

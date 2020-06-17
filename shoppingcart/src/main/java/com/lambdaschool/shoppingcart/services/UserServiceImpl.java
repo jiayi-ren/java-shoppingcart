@@ -2,7 +2,9 @@ package com.lambdaschool.shoppingcart.services;
 
 import com.lambdaschool.shoppingcart.exceptions.ResourceFoundException;
 import com.lambdaschool.shoppingcart.exceptions.ResourceNotFoundException;
+import com.lambdaschool.shoppingcart.models.Role;
 import com.lambdaschool.shoppingcart.models.User;
+import com.lambdaschool.shoppingcart.models.UserRoles;
 import com.lambdaschool.shoppingcart.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,12 @@ public class UserServiceImpl
 
     @Autowired
     private CartService cartService;
+
+    @Autowired
+    private RoleService roleService;
+
+    @Autowired
+    private UserAuditing userAuditing;
 
     @Override
     public List<User> findAll()
@@ -61,7 +69,24 @@ public class UserServiceImpl
     {
         User newUser = new User();
 
+        if (user.getUserid() != 0)
+        {
+            User oldUser = userrepos.findById(user.getUserid())
+                    .orElseThrow(() -> new ResourceNotFoundException("User id " + user.getUserid() + " not found!"));
+
+            // delete the roles for the old user we are replacing
+            for (UserRoles ur : oldUser.getRoles())
+            {
+                deleteUserRole(ur.getUser()
+                                .getUserid(),
+                        ur.getRole()
+                                .getRoleid());
+            }
+            newUser.setUserid(user.getUserid());
+        }
+
         newUser.setUsername(user.getUsername());
+        newUser.setPasswordNoEncrypt(user.getPassword());
         newUser.setComments(user.getComments());
 
         if (user.getCarts()
@@ -69,6 +94,75 @@ public class UserServiceImpl
         {
             throw new ResourceFoundException("Carts are not added through users");
         }
+
+        newUser.getRoles()
+                .clear();
+        if (user.getUserid() == 0)
+        {
+            for (UserRoles ur : user.getRoles())
+            {
+                Role newRole = roleService.findRoleById(ur.getRole()
+                        .getRoleid());
+
+                newUser.addRole(newRole);
+            }
+        } else
+        {
+            // add the new roles for the user we are replacing
+            for (UserRoles ur : user.getRoles())
+            {
+                addUserRole(newUser.getUserid(),
+                        ur.getRole()
+                                .getRoleid());
+            }
+        }
+
         return userrepos.save(newUser);
+    }
+
+    @Transactional
+    @Override
+    public void deleteUserRole(
+            long userid,
+            long roleid)
+    {
+        userrepos.findById(userid)
+                .orElseThrow(() -> new ResourceNotFoundException("User id " + userid + " not found!"));
+        roleService.findRoleById(roleid);
+
+        if (userrepos.checkUserRolesCombo(userid,
+                roleid)
+                .getCount() > 0)
+        {
+            userrepos.deleteUserRoles(userid,
+                    roleid);
+        } else
+        {
+            throw new ResourceNotFoundException("Role and User Combination Does Not Exists");
+        }
+    }
+
+    @Transactional
+    @Override
+    public void addUserRole(
+            long userid,
+            long roleid)
+    {
+        userrepos.findById(userid)
+                .orElseThrow(() -> new ResourceNotFoundException("User id " + userid + " not found!"));
+        roleService.findRoleById(roleid);
+
+        if (userrepos.checkUserRolesCombo(userid,
+                roleid)
+                .getCount() <= 0)
+        {
+            userrepos.insertUserRoles(userAuditing.getCurrentAuditor()
+                            .get(),
+                    userid,
+                    roleid);
+        } else
+        {
+            throw new ResourceFoundException("Role and User Combination Already Exists");
+        }
     }
 }
